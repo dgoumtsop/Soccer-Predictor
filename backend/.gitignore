@@ -2,3 +2,4 @@
 __pychache__/
 *.pyc
 .env
+data/raw/
