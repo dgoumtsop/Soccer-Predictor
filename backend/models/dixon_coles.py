@@ -1,7 +1,10 @@
+# models/dixon_coles.py
+
 import numpy as np
-import scipy.optimize import minimize
-import scipy.stats import poisson
+from scipy.optimize import minimize
+from scipy.stats import poisson
 import pandas as pd
+
 
 class DixonColesModel:
     def __init__(self):
@@ -9,32 +12,72 @@ class DixonColesModel:
         self.attack = {}
         self.defense = {}
         self.home_advantage = 0.0
-        
+
     def fit(self, matches: pd.DataFrame):
-        self.teams = sorted(set(matches["Home Team"]) | set(matches["Away Team"]))
+        """
+        matches must have columns: HomeTeam, AwayTeam, FTHG, FTAG
+        """
+        self.teams = sorted(set(matches["HomeTeam"]) | set(matches["AwayTeam"]))
         n_teams = len(self.teams)
         team_idx = {team: i for i, team in enumerate(self.teams)}
 
-        init_params = np.concatenate(
-        np.ones(n_teams),  # attack ratings
-        np.ones(n_teams),  # defense ratings
-        [0.1]              # home advantage
-
-    
-    def neg_log_likelihood(params):
-        attack = params[:n_teams]
-        defense = params[n_teams:2 * n_teams]
-        home_adv = params[-1]
-        log_lik = 0.
-        for _, row in matches.iterrows():
-            h = team_idx[row["Home Team"]] 
-            a = team_idx[row["Away Team"]]
-
-            home_expected = attack[h] * defense[a] * np.exp(home_adv)
-            away_expected = attack[a] * defense[h]
-
-            log_lik += poisson.logpmf(row["FTHG"], home expected)
-            log_lik += poisson.logpmf(row["FTAG"], away expected)
-
-            return -log_lik
+        # initial guesses: attack=1.0, defense=1.0 for every team, home_adv=0.1
+        init_params = np.concatenate([
+            np.ones(n_teams),      # attack ratings
+            np.ones(n_teams),      # defense ratings
+            [0.1]                  # home advantage
         ])
+
+        def neg_log_likelihood(params):
+            attack = params[:n_teams]
+            defense = params[n_teams:2 * n_teams]
+            home_adv = params[-1]
+
+            log_lik = 0.0
+            for _, row in matches.iterrows():
+                h = team_idx[row["HomeTeam"]]
+                a = team_idx[row["AwayTeam"]]
+
+                home_expected = attack[h] * defense[a] * np.exp(home_adv)
+                away_expected = attack[a] * defense[h]
+
+                log_lik += poisson.logpmf(row["FTHG"], home_expected)
+                log_lik += poisson.logpmf(row["FTAG"], away_expected)
+
+            return -log_lik  # minimize negative log-likelihood = maximize likelihood
+
+        result = minimize(
+            neg_log_likelihood,
+            init_params,
+            method="L-BFGS-B",
+            bounds=[(0.01, None)] * (2 * n_teams) + [(None, None)]
+        )
+
+        fitted = result.x
+        self.attack = {team: fitted[i] for i, team in enumerate(self.teams)}
+        self.defense = {team: fitted[n_teams + i] for i, team in enumerate(self.teams)}
+        self.home_advantage = fitted[-1]
+
+    def predict_expected_goals(self, home_team: str, away_team: str):
+        home_expected = (
+            self.attack[home_team] * self.defense[away_team] * np.exp(self.home_advantage)
+        )
+        away_expected = self.attack[away_team] * self.defense[home_team]
+        return home_expected, away_expected
+
+    def predict_match_outcome(self, home_team: str, away_team: str, max_goals: int = 10):
+        home_exp, away_exp = self.predict_expected_goals(home_team, away_team)
+
+        home_win = draw = away_win = 0.0
+
+        for h_goals in range(max_goals):
+            for a_goals in range(max_goals):
+                p = poisson.pmf(h_goals, home_exp) * poisson.pmf(a_goals, away_exp)
+                if h_goals > a_goals:
+                    home_win += p
+                elif h_goals == a_goals:
+                    draw += p
+                else:
+                    away_win += p
+
+        return {"home_win": home_win, "draw": draw, "away_win": away_win}
