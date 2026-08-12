@@ -1,3 +1,4 @@
+
 # models/dixon_coles.py
 
 import numpy as np
@@ -28,21 +29,23 @@ class DixonColesModel:
             [0.1]                  # home advantage
         ])
 
+        home_idx = matches["HomeTeam"].map(team_idx).to_numpy()
+        away_idx = matches["AwayTeam"].map(team_idx).to_numpy()
+        home_goals = matches["FTHG"].to_numpy()
+        away_goals = matches["FTAG"].to_numpy()
+
         def neg_log_likelihood(params):
             attack = params[:n_teams]
             defense = params[n_teams:2 * n_teams]
             home_adv = params[-1]
 
-            log_lik = 0.0
-            for _, row in matches.iterrows():
-                h = team_idx[row["HomeTeam"]]
-                a = team_idx[row["AwayTeam"]]
+            home_expected = attack[home_idx] * defense[away_idx] * np.exp(home_adv)
+            away_expected = attack[away_idx] * defense[home_idx]
 
-                home_expected = attack[h] * defense[a] * np.exp(home_adv)
-                away_expected = attack[a] * defense[h]
-
-                log_lik += poisson.logpmf(row["FTHG"], home_expected)
-                log_lik += poisson.logpmf(row["FTAG"], away_expected)
+            log_lik = (
+                poisson.logpmf(home_goals, home_expected).sum()
+                + poisson.logpmf(away_goals, away_expected).sum()
+            )
 
             return -log_lik  # minimize negative log-likelihood = maximize likelihood
 
