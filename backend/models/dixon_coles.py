@@ -1,4 +1,3 @@
-
 # models/dixon_coles.py
 
 import numpy as np
@@ -14,9 +13,15 @@ class DixonColesModel:
         self.defense = {}
         self.home_advantage = 0.0
 
-    def fit(self, matches: pd.DataFrame):
+    def fit(self, matches: pd.DataFrame, xi: float = 0.0018):
         """
-        matches must have columns: HomeTeam, AwayTeam, FTHG, FTAG
+        matches must have columns: HomeTeam, AwayTeam, FTHG, FTAG, Date
+
+        xi (the Greek letter "xi") controls how fast old matches fade in
+        importance. 0.0018 is the value from the original Dixon-Coles
+        paper — it means a match a full year old carries roughly a third
+        the weight of a match played today. Set xi=0 to disable decay
+        entirely (every match weighted equally, same as before).
         """
         self.teams = sorted(set(matches["HomeTeam"]) | set(matches["AwayTeam"]))
         n_teams = len(self.teams)
@@ -34,6 +39,18 @@ class DixonColesModel:
         home_goals = matches["FTHG"].to_numpy()
         away_goals = matches["FTAG"].to_numpy()
 
+        # Weight each match by recency. "days_ago" = how many days before
+        # the most recent match in this training set each match happened.
+        # The most recent match itself gets days_ago=0, weight=1.0 (full
+        # weight). Older matches get exponentially smaller weight.
+        dates = matches["Date"]
+        if not pd.api.types.is_datetime64_any_dtype(dates):
+            dates = pd.to_datetime(dates, dayfirst=True)
+
+        most_recent_date = dates.max()
+        days_ago = (most_recent_date - dates).dt.days.to_numpy()
+        weights = np.exp(-xi * days_ago)
+
         def neg_log_likelihood(params):
             attack = params[:n_teams]
             defense = params[n_teams:2 * n_teams]
@@ -42,9 +59,12 @@ class DixonColesModel:
             home_expected = attack[home_idx] * defense[away_idx] * np.exp(home_adv)
             away_expected = attack[away_idx] * defense[home_idx]
 
+            # multiplied by its weight before summing. A match with
+            # weight 0.3 only contributes 30% as much "pull" on the
+            # optimizer 
             log_lik = (
-                poisson.logpmf(home_goals, home_expected).sum()
-                + poisson.logpmf(away_goals, away_expected).sum()
+                (poisson.logpmf(home_goals, home_expected) * weights).sum()
+                + (poisson.logpmf(away_goals, away_expected) * weights).sum()
             )
 
             return -log_lik  # minimize negative log-likelihood = maximize likelihood
