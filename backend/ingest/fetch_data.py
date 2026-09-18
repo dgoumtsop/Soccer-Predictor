@@ -2,7 +2,7 @@ from pathlib import Path
 import requests
 
 BASE_URL = "https://www.football-data.co.uk/mmz4281/{season}/E0.csv"
-SEASON_CODES = ["2223", "2324", "2425", "2526"]
+SEASON_CODES = ["2223", "2324", "2425", "2526", "2627"]
 RAW_DATA_DIR = Path("data/raw")
 
 def build_url(season_code: str) -> str:
