@@ -1,4 +1,4 @@
-# Soccer Predictor — Backend
+# Soccer Predictor 
 
 A match-outcome prediction service for the English Premier League, built around a **Dixon-Coles** statistical model, validated with **walk-forward backtesting**, and served through a **FastAPI** app. Every prediction the API makes is written to a **tamper-evident, hash-chained ledger** in DuckDB, so the model's track record can't be quietly rewritten after the fact.
 
