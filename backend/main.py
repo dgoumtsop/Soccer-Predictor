@@ -7,19 +7,21 @@
 
 from contextlib import asynccontextmanager
 import os
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
 
+from fixture_list import load_fixtures, upcoming
 from ledger.prediction_ledger import add_prediction, init_ledger
 from models.dixon_coles import DixonColesModel
 from validation.walk_forward import load_matches
 
 DATA_DIR = Path("data/raw")
+FIXTURES_PATH = Path("data/fixtures/E0.csv")
 LEDGER_PATH = "predictions.duckdb"
 # ledger writes are off by default -- render's disk is wiped on every redeploy and
 # random visitors shouldn't be adding rows to a hash chain I want to keep clean.
@@ -63,6 +65,7 @@ async def lifespan(app: FastAPI):
     app.state.training_rows = len(matches)
     app.state.current_teams = current_season_teams(DATA_DIR)
     app.state.last_match_date = matches["Date"].max().date().isoformat()
+    app.state.fixtures = load_fixtures(FIXTURES_PATH)
 
     yield  # app runs here
 
@@ -107,6 +110,21 @@ def teams():
     # so callers actually know what strings /predict will accept --
     # team names have to match football-data.co.uk's naming exactly
     return {"teams": app.state.current_teams}
+
+
+def _today() -> date:
+    return datetime.now(timezone.utc).date()
+
+
+@app.get("/fixtures/upcoming")
+def upcoming_fixtures(days: int = Query(14, ge=1, le=60)):
+    fixtures = upcoming(app.state.fixtures, _today(), days)
+    known = set(app.state.current_teams)
+    for f in fixtures:
+        # a promoted team with no history in the data can't be predicted yet,
+        # so the frontend needs to know which rows to grey out
+        f["predictable"] = f["home_team"] in known and f["away_team"] in known
+    return {"fixtures": fixtures}
 
 
 @app.post("/predict", response_model=PredictionResponse)
