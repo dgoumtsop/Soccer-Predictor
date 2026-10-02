@@ -136,3 +136,24 @@ class DixonColesModel:
                     away_win += p
 
         return {"home_win": home_win, "draw": draw, "away_win": away_win}
+
+    def predict_scorelines(self, home_team: str, away_team: str, top_n: int = 3, max_goals: int = 10):
+        """
+        Time: O(G^2) for the grid plus O(G^2 log G^2) for the sort, G = max_goals
+        Space: O(G^2) for the grid
+        Returns the top_n most likely exact scores as (home_goals, away_goals, prob).
+        """
+        home_exp, away_exp = self.predict_expected_goals(home_team, away_team)
+
+        goals = np.arange(max_goals)
+        # same grid as predict_match_outcome, just built in one shot instead of looping
+        grid = np.outer(poisson.pmf(goals, home_exp), poisson.pmf(goals, away_exp))
+        for h in (0, 1):
+            for a in (0, 1):
+                grid[h, a] *= _tau(h, a, home_exp, away_exp, self.rho)
+
+        flat_order = np.argsort(grid, axis=None)[::-1][:top_n]
+        return [
+            (int(i // max_goals), int(i % max_goals), float(grid[i // max_goals, i % max_goals]))
+            for i in flat_order
+        ]

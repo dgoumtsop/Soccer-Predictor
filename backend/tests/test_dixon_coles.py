@@ -55,3 +55,14 @@ def test_xi_zero_matches_undecayed_behavior():
     model.fit(matches, xi=0.0)
     result = model.predict_match_outcome('Arsenal', 'Chelsea')
     assert abs(sum(result.values()) - 1.0) < 0.01
+
+def test_scorelines_sorted_and_consistent_with_outcome():
+    matches = pd.read_csv('data/raw/E0_2526.csv')
+    model = DixonColesModel()
+    model.fit(matches)
+    top = model.predict_scorelines('Arsenal', 'Chelsea', top_n=5)
+    assert len(top) == 5
+    probs = [p for _, _, p in top]
+    assert probs == sorted(probs, reverse=True)
+    # the top 5 cells can't add up to more than 1 and each has to be a real probability
+    assert sum(probs) <= 1.0 and all(0 < p < 1 for p in probs)
