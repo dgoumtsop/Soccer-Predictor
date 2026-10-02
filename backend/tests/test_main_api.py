@@ -56,7 +56,8 @@ def api_client(tmp_path, monkeypatch):
 def test_health_check(api_client):
     response = api_client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    assert response.json()["status"] == "ok"
+    assert response.json()["data_through"]
 
 
 def test_teams_lists_fitted_teams(api_client):
@@ -66,14 +67,14 @@ def test_teams_lists_fitted_teams(api_client):
     assert set(teams) == {"Arsenal", "Chelsea", "Everton", "Fulham"}
 
 
-def test_predict_returns_probabilities_and_ledger_id(api_client):
+def test_predict_returns_probabilities(api_client):
     response = api_client.post(
         "/predict", json={"home_team": "Arsenal", "away_team": "Chelsea"}
     )
     assert response.status_code == 200
     body = response.json()
 
-    assert body["prediction_id"]
+    assert body["prediction_id"] is None  # ledger off by default
     assert body["model_version"] == main.MODEL_VERSION
 
     probs = [body["home_win_prob"], body["draw_prob"], body["away_win_prob"]]
@@ -82,8 +83,15 @@ def test_predict_returns_probabilities_and_ledger_id(api_client):
     assert body["home_expected_goals"] > 0
     assert body["away_expected_goals"] > 0
 
+    scores = body["top_scorelines"]
+    assert len(scores) == 3
+    assert scores[0]["prob"] >= scores[1]["prob"] >= scores[2]["prob"]
 
-def test_predict_writes_to_ledger(api_client):
+
+def test_predict_writes_to_ledger_when_enabled(api_client, monkeypatch):
+    monkeypatch.setattr(main, "LOG_PREDICTIONS", True)
+    from ledger.prediction_ledger import init_ledger
+    init_ledger(main.LEDGER_PATH)
     api_client.post("/predict", json={"home_team": "Arsenal", "away_team": "Chelsea"})
 
     from ledger.prediction_ledger import verify_chain
@@ -105,3 +113,21 @@ def test_predict_same_team_twice_returns_400(api_client):
         "/predict", json={"home_team": "Arsenal", "away_team": "Arsenal"}
     )
     assert response.status_code == 400
+
+
+def test_teams_only_lists_current_season(tmp_path, monkeypatch):
+    data_dir = tmp_path / "data" / "raw"
+    data_dir.mkdir(parents=True)
+    _write_synthetic_season(data_dir / "E0_2425.csv")
+    # newest season is missing Fulham, like a relegated team
+    df = pd.read_csv(data_dir / "E0_2425.csv")
+    df = df[(df.HomeTeam != "Fulham") & (df.AwayTeam != "Fulham")]
+    df["Date"] = (pd.to_datetime(df["Date"], dayfirst=True) + pd.Timedelta(days=400)).dt.strftime("%d/%m/%Y")
+    df.to_csv(data_dir / "E0_2526.csv", index=False)
+
+    monkeypatch.setattr(main, "DATA_DIR", data_dir)
+    monkeypatch.setattr(main, "LEDGER_PATH", str(tmp_path / "p.duckdb"))
+    with TestClient(main.app) as client:
+        assert set(client.get("/teams").json()["teams"]) == {"Arsenal", "Chelsea", "Everton"}
+        r = client.post("/predict", json={"home_team": "Arsenal", "away_team": "Fulham"})
+        assert r.status_code == 404
