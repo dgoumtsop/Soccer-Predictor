@@ -37,6 +37,21 @@ def test_generate_cutoffs_respects_min_train_days():
     assert all(c < matches["Date"].max() for c in cutoffs)
 
 
+def test_generate_cutoffs_returns_every_step():
+    # 40 rounds x 5 days = 200 days of data; after 90 days of training
+    # that leaves room for a cutoff every 30 days, not just the first one
+    matches = _synthetic_matches()
+    cutoffs = generate_cutoffs(matches, step_days=30, min_train_days=90)
+    start = matches["Date"].min() + pd.Timedelta(days=90)
+    expected = []
+    curr = start
+    while curr < matches["Date"].max():
+        expected.append(curr)
+        curr += pd.Timedelta(days=30)
+    assert len(cutoffs) > 1
+    assert cutoffs == expected
+
+
 def test_evaluate_window_skips_unknown_teams():
     matches = _synthetic_matches()
     train = matches.iloc[:50]
@@ -72,6 +87,8 @@ def test_run_walk_forward_produces_aggregate_row():
     # every non-aggregate row should have evaluated at least one match
     per_window = results[results["cutoff"] != "AGGREGATE"]
     assert (per_window["matches_evaluated"] > 0).all()
+    # a real walk-forward run refits at several cutoffs, not one
+    assert len(per_window) > 1
 
 
 def test_run_walk_forward_raises_on_insufficient_range():

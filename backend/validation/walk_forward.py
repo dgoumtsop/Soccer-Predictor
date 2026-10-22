@@ -70,7 +70,7 @@ def generate_cutoffs(matches: pd.DataFrame,
     while curr < end:
         cut_offs.append(curr)
         curr += pd.Timedelta(days= step_days)
-        return cut_offs
+    return cut_offs
     
 def actual_outcome(row : pd.Series) -> str :
     if row["FTHG"] > row["FTAG"]:

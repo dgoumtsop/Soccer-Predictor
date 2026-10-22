@@ -119,10 +119,15 @@ Output is designed to be **comparable across model versions**, so a change (say,
 
 ### Reference points
 
-| Predictor | Log loss | Brier (multiclass) |
-|---|---|---|
-| Uniform guess (⅓ / ⅓ / ⅓) | 1.0986 | 0.6667 |
-| Dixon-Coles (walk-forward) | *add your measured value* | *add your measured value* |
+| Predictor | Accuracy | Log loss | Brier |
+|---|---|---|---|
+| Uniform guess (⅓ / ⅓ / ⅓) | 33.3% | 1.0986 | 0.2222 |
+| Always pick the home team | 44.0% | — | — |
+| **Dixon-Coles (walk-forward)** | **53.2%** | **0.9933** | **0.1949** |
+
+Measured on the 2022/23 – 2026/27 data in `backend/data/raw` (1,590 matches through 2026-10-19): 39 monthly cutoffs, 180 days of minimum training history, 1,376 matches scored and 15 skipped because a promoted team had no history yet. Dixon-Coles figures are the average across windows, as reported by `run_walk_forward`'s `AGGREGATE` row; the home-team baseline is computed on the same 1,376 matches. Brier is the squared error averaged over the three outcome classes, the same way `brier_score` computes it.
+
+Per class, the model gets 77% of home wins and 60% of away wins right, but only 0.7% of draws, because a draw is rarely the single most likely outcome. Accuracy picks the top outcome; the draw probabilities themselves still count toward log loss and Brier.
 
 A model that can't beat the uniform baseline on log loss isn't predicting anything. Beating it consistently on held-out, chronologically-later data is the bar.
 
