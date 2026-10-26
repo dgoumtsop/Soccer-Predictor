@@ -66,3 +66,10 @@ def test_scorelines_sorted_and_consistent_with_outcome():
     assert probs == sorted(probs, reverse=True)
     # the top 5 cells can't add up to more than 1 and each has to be a real probability
     assert sum(probs) <= 1.0 and all(0 < p < 1 for p in probs)
+
+
+def test_attack_ratings_normalized_to_mean_one():
+    matches = pd.read_csv('data/raw/E0_2526.csv')
+    model = DixonColesModel()
+    model.fit(matches)
+    assert abs(np.mean(list(model.attack.values())) - 1.0) < 1e-9

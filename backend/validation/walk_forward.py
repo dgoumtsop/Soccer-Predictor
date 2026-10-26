@@ -27,7 +27,9 @@ def load_matches(csv_path: str | Path) -> pd.DataFrame:
             f"Missing required columns: {missing_columns}"
         )
 
-    df = df[REQUIRED_COLUMNS].copy()
+    # football-data sometimes leaves blank/postponed rows in the current season --
+    # one NaN score would turn the whole likelihood into NaN
+    df = df[REQUIRED_COLUMNS].dropna().copy()
 
     df["Date"] = pd.to_datetime(
         df["Date"],

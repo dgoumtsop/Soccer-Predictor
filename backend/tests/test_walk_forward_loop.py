@@ -4,6 +4,7 @@ import pytest
 
 from validation.walk_forward import (
     generate_cutoffs,
+    load_matches,
     evaluate_window,
     run_walk_forward,
 )
@@ -95,3 +96,15 @@ def test_run_walk_forward_raises_on_insufficient_range():
     tiny = _synthetic_matches(n_teams=4, n_rounds=3)
     with pytest.raises(ValueError):
         run_walk_forward(tiny, step_days=30, min_train_days=180)
+
+def test_load_matches_drops_rows_missing_scores(tmp_path):
+    csv = tmp_path / "E0_test.csv"
+    csv.write_text(
+        "Date,HomeTeam,AwayTeam,FTHG,FTAG\n"
+        "10/08/2026,Arsenal,Chelsea,2,1\n"
+        "17/08/2026,Chelsea,Arsenal,,\n"
+        ",,,,\n"
+    )
+    df = load_matches(csv)
+    assert len(df) == 1
+    assert not df[["FTHG", "FTAG"]].isna().any().any()

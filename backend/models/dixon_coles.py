@@ -103,7 +103,14 @@ class DixonColesModel:
             bounds=[(0.01, None)] * (2 * n_teams) + [(None, None)] + [(-0.2, 0.2)]
         )
 
-        fitted = result.x
+        fitted = result.x.copy()
+        # attack*c and defense/c give the exact same likelihood, so the raw fit
+        # can land anywhere along that line. pin mean attack to 1 so ratings are
+        # comparable between fits -- predictions don't change at all
+        scale = fitted[:n_teams].mean()
+        fitted[:n_teams] /= scale
+        fitted[n_teams:2 * n_teams] *= scale
+
         self.attack = {team: fitted[i] for i, team in enumerate(self.teams)}
         self.defense = {team: fitted[n_teams + i] for i, team in enumerate(self.teams)}
         self.home_advantage = fitted[-2]
