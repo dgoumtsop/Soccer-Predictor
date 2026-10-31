@@ -1,11 +1,11 @@
-Date,Time,HomeTeam,AwayTeam
-2026-10-31,12:30,Chelsea,Man United
-2026-10-31,15:00,Bournemouth,Leeds
-2026-10-31,15:00,Brentford,Nott'm Forest
-2026-10-31,15:00,Coventry,Sunderland
-2026-10-31,15:00,Hull,Ipswich
-2026-10-31,15:00,Man City,Brighton
-2026-10-31,17:30,Tottenham,Crystal Palace
-2026-10-31,20:00,Aston Villa,Fulham
-2026-11-01,16:30,Liverpool,Arsenal
-2026-11-02,20:00,Newcastle,Everton
+Date,Time,HomeTeam,AwayTeam,AvgH,AvgD,AvgA
+2026-10-31,12:30,Chelsea,Man United,1.81,3.88,3.93
+2026-10-31,15:00,Bournemouth,Leeds,2.11,3.38,3.36
+2026-10-31,15:00,Brentford,Nott'm Forest,2.04,3.64,3.36
+2026-10-31,15:00,Coventry,Sunderland,3.05,3.32,2.28
+2026-10-31,15:00,Hull,Ipswich,2.58,3.39,2.62
+2026-10-31,15:00,Man City,Brighton,1.62,4.37,4.58
+2026-10-31,17:30,Tottenham,Crystal Palace,1.53,4.35,5.5
+2026-10-31,20:00,Aston Villa,Fulham,1.93,3.7,3.61
+2026-11-01,16:30,Liverpool,Arsenal,2.91,3.4,2.33
+2026-11-02,20:00,Newcastle,Everton,2.28,3.53,2.89

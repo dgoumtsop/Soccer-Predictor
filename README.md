@@ -2,7 +2,7 @@
 
 A match-outcome prediction service for the English Premier League. It fits a **Dixon-Coles** model to five seasons of results, validates it with **walk-forward backtesting**, serves predictions through a **FastAPI** app, and can record every prediction in a **hash-chained, tamper-evident ledger** in DuckDB. A GitHub Actions job refreshes results and fixtures daily.
 
-**Live API:** https://soccer-predictor-dy7l.onrender.com (interactive docs at [`/docs`](https://soccer-predictor-dy7l.onrender.com/docs))
+**Live site:** https://soccer-predictor-dy7l.onrender.com (pick two teams, or click one of this week's games). API docs at [`/docs`](https://soccer-predictor-dy7l.onrender.com/docs).
 
 > The premise: a sports model is only credible if it is validated honestly and its predictions are auditable. The model, the validation, and the ledger are the product.
 
@@ -175,6 +175,10 @@ Logging is **off by default**: Render's disk is wiped on every redeploy, and ano
 
 ## API Reference
 
+### `GET /`
+
+The website: a single static page (`backend/static/index.html`) that calls the endpoints below. It shows the model's win/draw/loss probabilities next to the bookmakers', plus expected goals and the most likely scores.
+
 ### `GET /health`
 
 ```json
@@ -189,7 +193,7 @@ Teams in the current season. Use these exact names in `/predict`.
 
 ### `GET /fixtures/upcoming?days=14`
 
-Upcoming EPL fixtures in the next `days` days (1–60, default 14). Each fixture has a `predictable` flag that is false when a team has no history in the data.
+Upcoming EPL fixtures in the next `days` days (1–60, default 14). Each fixture has a `predictable` flag that is false when a team has no history in the data, and a `bookmaker` object with the market's win/draw/loss probabilities (from average decimal odds, with the bookmaker margin removed), or `null` when no odds are available.
 
 ### `POST /predict`
 

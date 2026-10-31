@@ -12,6 +12,9 @@ import requests
 
 FIXTURES_URL = "https://www.football-data.co.uk/fixtures.csv"
 FIXTURES_PATH = Path("data/fixtures/E0.csv")
+# average decimal odds across bookmakers -- kept so the site can show the
+# market's view next to the model's. not every row/file has them, so optional
+ODDS_COLUMNS = ["AvgH", "AvgD", "AvgA"]
 
 
 def parse_fixtures(content: bytes) -> pd.DataFrame:
@@ -37,8 +40,11 @@ def parse_fixtures(content: bytes) -> pd.DataFrame:
     df = df.dropna(subset=["Date", "HomeTeam", "AwayTeam"])
     df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
     df["Time"] = df["Time"].fillna("")
+    for col in ODDS_COLUMNS:
+        if col not in df.columns:
+            df[col] = float("nan")
 
-    return df[["Date", "Time", "HomeTeam", "AwayTeam"]].reset_index(drop=True)
+    return df[["Date", "Time", "HomeTeam", "AwayTeam", *ODDS_COLUMNS]].reset_index(drop=True)
 
 
 def download_fixtures(path: Path = FIXTURES_PATH) -> int:
