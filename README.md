@@ -220,11 +220,14 @@ Response shape:
     { "home_goals": 1, "away_goals": 1, "prob": 0.11 },
     { "home_goals": 2, "away_goals": 1, "prob": 0.09 }
   ],
+  "predicted_score": { "home_goals": 1, "away_goals": 0, "prob": 0.12 },
   "model_version": "dixon_coles_v1"
 }
 ```
 
 `prediction_id` is set only when `LOG_PREDICTIONS=1`.
+
+`predicted_score` is the most likely score for the most likely result. The single likeliest score is usually a 1-1 or 1-0 even when one side is a clear favourite, so it is picked from the scores that match the favoured result instead.
 
 | Status | Cause |
 |---|---|
