@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Soccer Predictor</title>
+  <meta name="description" content="Premier League match predictions from a Dixon-Coles model, next to the bookmakers' odds.">
+  <style>
+    :root {
+      --bg: #f4f6f3;
+      --card: #ffffff;
+      --text: #17201b;
+      --muted: #5d6b63;
+      --border: #dfe5e0;
+      --accent: #1f7a4d;
+      --accent-text: #ffffff;
+      --home: #1f7a4d;
+      --draw: #9aa59e;
+      --away: #c2603a;
+      --warn-bg: #fff4e5;
+      --warn-text: #7a4b00;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #101512;
+        --card: #18201b;
+        --text: #e6ece8;
+        --muted: #98a69e;
+        --border: #2a352e;
+        --accent: #3ba872;
+        --accent-text: #0c120e;
+        --home: #3ba872;
+        --draw: #6d7a72;
+        --away: #e07a52;
+        --warn-bg: #33270f;
+        --warn-text: #f3c97a;
+      }
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    main { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
+    header h1 { margin: 0; font-size: 1.75rem; }
+    header p { margin: 4px 0 20px; color: var(--muted); font-size: 0.9rem; }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .card h2 { margin: 0 0 14px; font-size: 1.1rem; }
+
+    .picker { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: end; }
+    .picker label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 4px; }
+    select, button { font: inherit; color: inherit; }
+    select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+    }
+    .swap {
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: transparent;
+      cursor: pointer;
+    }
+    .predict {
+      width: 100%;
+      margin-top: 14px;
+      padding: 12px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--accent);
+      color: var(--accent-text);
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .predict:disabled { opacity: 0.6; cursor: wait; }
+
+    .matchup { font-size: 1.25rem; font-weight: 700; margin: 0 0 16px; }
+    .row-label { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--muted); margin-bottom: 4px; }
+    .bar { display: flex; height: 30px; border-radius: 6px; overflow: hidden; margin-bottom: 14px; }
+    .bar span {
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 0.8rem; font-weight: 600; white-space: nowrap; min-width: 0;
+    }
+    .bar .h { background: var(--home); }
+    .bar .d { background: var(--draw); }
+    .bar .a { background: var(--away); }
+    .legend { display: flex; gap: 14px; font-size: 0.8rem; color: var(--muted); margin: -6px 0 16px; flex-wrap: wrap; }
+    .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; }
+
+    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .stat { background: var(--bg); border-radius: 8px; padding: 12px; }
+    .stat small { display: block; color: var(--muted); font-size: 0.8rem; }
+    .stat strong { font-size: 1.15rem; }
+    .scores { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+    .scores span { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; font-size: 0.9rem; }
+
+    .note { margin-top: 14px; padding: 10px 12px; border-radius: 8px; background: var(--warn-bg); color: var(--warn-text); font-size: 0.9rem; }
+    .error { color: var(--away); }
+
+    .day { margin: 14px 0 6px; font-size: 0.85rem; font-weight: 600; color: var(--muted); }
+    .day:first-child { margin-top: 0; }
+    .game {
+      display: flex; gap: 12px; align-items: center; width: 100%;
+      padding: 10px 12px; margin-bottom: 6px;
+      border: 1px solid var(--border); border-radius: 8px;
+      background: transparent; text-align: left; cursor: pointer;
+    }
+    .game:hover:not(:disabled) { border-color: var(--accent); }
+    .game:disabled { opacity: 0.5; cursor: not-allowed; }
+    .game time { color: var(--muted); font-size: 0.85rem; width: 44px; flex-shrink: 0; }
+    .game .teams { flex: 1; min-width: 0; }
+    .game .fav { color: var(--muted); font-size: 0.8rem; white-space: nowrap; }
+
+    details summary { cursor: pointer; font-weight: 600; }
+    details p, details li { color: var(--muted); font-size: 0.95rem; }
+    details ul { padding-left: 20px; }
+
+    footer { text-align: center; color: var(--muted); font-size: 0.85rem; }
+    footer a { color: inherit; }
+
+    @media (max-width: 520px) {
+      .picker { grid-template-columns: 1fr; }
+      .swap { justify-self: center; }
+      .stats { grid-template-columns: 1fr; }
+      .game .fav { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Soccer Predictor</h1>
+      <p id="subtitle">Premier League predictions from a Dixon-Coles model.</p>
+    </header>
+
+    <section class="card">
+      <h2>Pick a match</h2>
+      <div class="picker">
+        <div>
+          <label for="home">Home</label>
+          <select id="home"></select>
+        </div>
+        <button class="swap" id="swap" type="button" aria-label="Swap home and away">⇄</button>
+        <div>
+          <label for="away">Away</label>
+          <select id="away"></select>
+        </div>
+      </div>
+      <button class="predict" id="predict" type="button">Predict</button>
+    </section>
+
+    <section class="card" id="result" hidden></section>
+
+    <section class="card">
+      <h2>Upcoming games</h2>
+      <div id="games"><p>Loading fixtures...</p></div>
+    </section>
+
+    <section class="card">
+      <details>
+        <summary>Why are the predicted scores so low?</summary>
+        <p>
+          Expected goals is an average, not a score. A team expected to score 1.8 is most
+          likely to score exactly 1 (about 30%), but has around a 53% chance of scoring 2 or more.
+          Put two teams together and 1-1, 1-0 or 2-1 nearly always comes out as the single most
+          likely score, even though no exact score is very likely.
+        </p>
+        <ul>
+          <li>Use the win / draw / loss percentages to decide who wins.</li>
+          <li>Use expected goals for total goals: 1.8 + 1.4 = 3.2 points to over 2.5 goals.</li>
+          <li>The model also bumps up 0-0 and 1-1 slightly, because real matches end that way more often than basic maths predicts.</li>
+        </ul>
+        <p>
+          The bookmaker line comes from the average odds across bookmakers, with their margin
+          taken out. Odds include injuries, lineups and team news; this model only knows past results.
+        </p>
+      </details>
+    </section>
+
+    <footer>
+      <a href="/docs">API docs</a> ·
+      <a href="https://github.com/dgoumtsop/Soccer-Predictor">GitHub</a>
+    </footer>
+  </main>
+
+  <script>
+    const home = document.getElementById("home");
+    const away = document.getElementById("away");
+    const predictBtn = document.getElementById("predict");
+    const result = document.getElementById("result");
+    const games = document.getElementById("games");
+
+    let fixtures = [];
+
+    const pct = (p) => Math.round(p * 100) + "%";
+
+    // small helper so team names always go in as text, never as html
+    function el(tag, props = {}, ...children) {
+      const node = document.createElement(tag);
+      Object.assign(node, props);
+      for (const child of children) node.append(child);
+      return node;
+    }
+
+    function probBar(probs) {
+      const parts = [
+        ["h", probs.home_win_prob],
+        ["d", probs.draw_prob],
+        ["a", probs.away_win_prob],
+      ];
+      return el("div", { className: "bar" }, ...parts.map(([cls, p]) => {
+        const span = el("span", { className: cls, textContent: p >= 0.08 ? pct(p) : "" });
+        span.style.width = p * 100 + "%";
+        return span;
+      }));
+    }
+
+    function legend(homeTeam, awayTeam) {
+      const item = (color, text) => el("span", {}, swatch(color), text);
+      const swatch = (color) => {
+        const i = el("i");
+        i.style.background = `var(--${color})`;
+        return i;
+      };
+      return el("div", { className: "legend" },
+        item("home", homeTeam + " win"), item("draw", "Draw"), item("away", awayTeam + " win"));
+    }
+
+    function findFixture(h, a) {
+      return fixtures.find((f) => f.home_team === h && f.away_team === a);
+    }
+
+    function render(data) {
+      const fixture = findFixture(data.home_team, data.away_team);
+      const bookie = fixture && fixture.bookmaker;
+
+      const scores = el("div", { className: "scores" },
+        ...data.top_scorelines.map((s) =>
+          el("span", { textContent: `${s.home_goals}-${s.away_goals} (${pct(s.prob)})` })));
+
+      result.replaceChildren(
+        el("p", { className: "matchup", textContent: `${data.home_team} vs ${data.away_team}` }),
+        el("div", { className: "row-label" }, el("span", { textContent: "Model" })),
+        probBar(data),
+      );
+
+      if (bookie) {
+        result.append(
+          el("div", { className: "row-label" }, el("span", { textContent: "Bookmakers (average odds)" })),
+          probBar(bookie),
+        );
+      }
+
+      result.append(
+        legend(data.home_team, data.away_team),
+        el("div", { className: "stats" },
+          el("div", { className: "stat" },
+            el("small", { textContent: "Expected goals" }),
+            el("strong", { textContent: `${data.home_expected_goals.toFixed(2)} – ${data.away_expected_goals.toFixed(2)}` })),
+          el("div", { className: "stat" },
+            el("small", { textContent: "Most likely scores" }),
+            scores)),
+      );
+
+      if (bookie) {
+        const gaps = [
+          [data.home_team + " win", data.home_win_prob - bookie.home_win_prob],
+          ["a draw", data.draw_prob - bookie.draw_prob],
+          [data.away_team + " win", data.away_win_prob - bookie.away_win_prob],
+        ];
+        const [label, gap] = gaps.reduce((a, b) => (Math.abs(b[1]) > Math.abs(a[1]) ? b : a));
+        if (Math.abs(gap) >= 0.1) {
+          const direction = gap > 0 ? "higher" : "lower";
+          result.append(el("p", {
+            className: "note",
+            textContent: `The model rates ${label} ${Math.round(Math.abs(gap) * 100)} points ${direction} than the bookmakers. ` +
+              "Big gaps usually mean the odds know something the model doesn't, like injuries or team news.",
+          }));
+        }
+      }
+
+      result.hidden = false;
+    }
+
+    async function predict() {
+      if (home.value === away.value) {
+        result.replaceChildren(el("p", { className: "error", textContent: "Pick two different teams." }));
+        result.hidden = false;
+        return;
+      }
+      predictBtn.disabled = true;
+      predictBtn.textContent = "Predicting...";
+      try {
+        const res = await fetch("/predict", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ home_team: home.value, away_team: away.value }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Prediction failed");
+        render(data);
+      } catch (err) {
+        result.replaceChildren(el("p", { className: "error", textContent: err.message }));
+        result.hidden = false;
+      } finally {
+        predictBtn.disabled = false;
+        predictBtn.textContent = "Predict";
+      }
+    }
+
+    function formatDay(iso) {
+      const d = new Date(iso + "T12:00:00");
+      return d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" });
+    }
+
+    function favourite(f) {
+      const b = f.bookmaker;
+      if (!b) return "";
+      const options = [[f.home_team, b.home_win_prob], ["Draw", b.draw_prob], [f.away_team, b.away_win_prob]];
+      const [name, p] = options.reduce((a, c) => (c[1] > a[1] ? c : a));
+      return `Odds: ${name} ${pct(p)}`;
+    }
+
+    function renderGames() {
+      if (!fixtures.length) {
+        games.replaceChildren(el("p", { textContent: "No fixtures in the next week." }));
+        return;
+      }
+      const nodes = [];
+      let lastDay = null;
+      for (const f of fixtures) {
+        if (f.date !== lastDay) {
+          nodes.push(el("div", { className: "day", textContent: formatDay(f.date) }));
+          lastDay = f.date;
+        }
+        const btn = el("button", { className: "game", type: "button", disabled: !f.predictable },
+          el("time", { textContent: f.time || "" }),
+          el("span", { className: "teams", textContent: `${f.home_team} v ${f.away_team}` }),
+          el("span", { className: "fav", textContent: f.predictable ? favourite(f) : "No data yet" }));
+        btn.addEventListener("click", () => {
+          home.value = f.home_team;
+          away.value = f.away_team;
+          predict();
+          result.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+        nodes.push(btn);
+      }
+      games.replaceChildren(...nodes);
+    }
+
+    async function init() {
+      try {
+        const [teamsRes, fixturesRes, healthRes] = await Promise.all([
+          fetch("/teams"), fetch("/fixtures/upcoming?days=7"), fetch("/health"),
+        ]);
+        const { teams } = await teamsRes.json();
+        for (const team of teams) {
+          home.add(new Option(team, team));
+          away.add(new Option(team, team));
+        }
+        away.selectedIndex = 1; // so home and away don't start as the same team
+
+        fixtures = (await fixturesRes.json()).fixtures;
+        renderGames();
+
+        const { data_through } = await healthRes.json();
+        if (data_through) {
+          document.getElementById("subtitle").textContent =
+            `Premier League predictions from a Dixon-Coles model. Results up to ${formatDay(data_through)}.`;
+        }
+      } catch (err) {
+        games.replaceChildren(el("p", { className: "error", textContent: "Couldn't reach the API. Try refreshing in a minute." }));
+      }
+    }
+
+    predictBtn.addEventListener("click", predict);
+    document.getElementById("swap").addEventListener("click", () => {
+      [home.value, away.value] = [away.value, home.value];
+    });
+    init();
+  </script>
+</body>
+</html>

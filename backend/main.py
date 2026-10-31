@@ -13,6 +13,7 @@ from typing import Optional
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from fixture_list import load_fixtures, upcoming
@@ -23,6 +24,7 @@ from validation.walk_forward import load_matches
 DATA_DIR = Path("data/raw")
 FIXTURES_PATH = Path("data/fixtures/E0.csv")
 LEDGER_PATH = "predictions.duckdb"
+INDEX_PAGE = Path(__file__).parent / "static" / "index.html"
 # ledger writes are off by default -- render's disk is wiped on every redeploy and
 # random visitors shouldn't be adding rows to a hash chain I want to keep clean.
 # flip LOG_PREDICTIONS=1 for runs where I actually want the ledger
@@ -97,6 +99,12 @@ class PredictionResponse(BaseModel):
     away_expected_goals: float
     top_scorelines: list[Scoreline]
     model_version: str
+
+
+@app.get("/", include_in_schema=False)
+def home():
+    # the website -- one static page that calls the endpoints below
+    return FileResponse(INDEX_PAGE)
 
 
 @app.get("/health")

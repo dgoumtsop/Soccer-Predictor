@@ -11,7 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import main
-from fixture_list import load_fixtures, upcoming
+from fixture_list import bookmaker_probs, load_fixtures, upcoming
 from ingest import fetch_fixtures, refresh
 
 SAMPLE = (
@@ -34,11 +34,32 @@ class FakeResponse:
 
 def test_parse_fixtures_keeps_only_premier_league_and_iso_dates():
     df = fetch_fixtures.parse_fixtures(SAMPLE.encode())
-    assert list(df.columns) == ["Date", "Time", "HomeTeam", "AwayTeam"]
+    assert list(df.columns) == ["Date", "Time", "HomeTeam", "AwayTeam", "AvgH", "AvgD", "AvgA"]
     assert len(df) == 3
-    assert df.iloc[0].to_dict() == {
+    assert df.iloc[0][["Date", "Time", "HomeTeam", "AwayTeam"]].to_dict() == {
         "Date": "2026-10-03", "Time": "15:00", "HomeTeam": "Arsenal", "AwayTeam": "Leeds",
     }
+    # SAMPLE has no Avg odds columns, so they come through empty
+    assert df["AvgH"].isna().all()
+
+
+def test_parse_fixtures_keeps_average_odds():
+    text = "Div,Date,Time,HomeTeam,AwayTeam,AvgH,AvgD,AvgA\nE0,03/10/2026,15:00,Arsenal,Leeds,1.50,4.20,6.50\n"
+    row = fetch_fixtures.parse_fixtures(text.encode()).iloc[0]
+    assert (row["AvgH"], row["AvgD"], row["AvgA"]) == (1.50, 4.20, 6.50)
+
+
+def test_bookmaker_probs_removes_margin():
+    probs = bookmaker_probs(2.0, 3.5, 4.0)
+    assert abs(sum(probs.values()) - 1.0) < 1e-9
+    assert probs["home_win_prob"] > probs["away_win_prob"] > 0
+    # 1/2 + 1/3.5 + 1/4 = 1.0357, so home is 0.5 / 1.0357
+    assert abs(probs["home_win_prob"] - 0.5 / (0.5 + 1 / 3.5 + 0.25)) < 1e-9
+
+
+def test_bookmaker_probs_missing_odds_is_none():
+    assert bookmaker_probs(float("nan"), 3.5, 4.0) is None
+    assert bookmaker_probs(2.0, 1.0, 4.0) is None
 
 
 def test_parse_fixtures_rejects_html_error_page():
@@ -62,6 +83,13 @@ def test_upcoming_window_and_ordering(tmp_path):
 
 def test_load_fixtures_missing_file_is_empty(tmp_path):
     assert load_fixtures(tmp_path / "nope.csv").empty
+
+
+def test_load_fixtures_reads_old_file_without_odds(tmp_path):
+    path = tmp_path / "E0.csv"
+    path.write_text("Date,Time,HomeTeam,AwayTeam\n2026-10-03,15:00,Arsenal,Leeds\n")
+    week = upcoming(load_fixtures(path), date(2026, 10, 2), days=7)
+    assert week[0]["bookmaker"] is None
 
 
 def test_refresh_downloads_fixtures_file(tmp_path, monkeypatch):

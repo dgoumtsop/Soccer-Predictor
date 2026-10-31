@@ -53,6 +53,13 @@ def api_client(tmp_path, monkeypatch):
         yield client
 
 
+def test_home_page_is_served(api_client):
+    response = api_client.get("/")
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert "Soccer Predictor" in response.text
+
+
 def test_health_check(api_client):
     response = api_client.get("/health")
     assert response.status_code == 200
