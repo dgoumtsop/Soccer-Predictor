@@ -94,6 +94,18 @@ def test_predict_returns_probabilities(api_client):
     assert len(scores) == 3
     assert scores[0]["prob"] >= scores[1]["prob"] >= scores[2]["prob"]
 
+    # predicted score has to agree with whichever result is most likely
+    pick = body["predicted_score"]
+    favoured = max(range(3), key=lambda i: probs[i])
+    diff = pick["home_goals"] - pick["away_goals"]
+    assert {0: diff > 0, 1: diff == 0, 2: diff < 0}[favoured]
+
+
+def test_pick_predicted_score_skips_likeliest_draw_when_home_favoured():
+    outcome = {"home_win": 0.5, "draw": 0.3, "away_win": 0.2}
+    ranked = [(1, 1, 0.12), (1, 0, 0.11), (2, 1, 0.10)]
+    assert main.pick_predicted_score(outcome, ranked) == (1, 0, 0.11)
+
 
 def test_predict_writes_to_ledger_when_enabled(api_client, monkeypatch):
     monkeypatch.setattr(main, "LOG_PREDICTIONS", True)

@@ -98,7 +98,21 @@ class PredictionResponse(BaseModel):
     home_expected_goals: float
     away_expected_goals: float
     top_scorelines: list[Scoreline]
+    predicted_score: Scoreline
     model_version: str
+
+
+def _result_of(home_goals: int, away_goals: int) -> str:
+    if home_goals > away_goals:
+        return "home_win"
+    return "draw" if home_goals == away_goals else "away_win"
+
+
+def pick_predicted_score(outcome: dict, scorelines: list[tuple]) -> tuple:
+    # the single likeliest score is usually 1-1 even when one side is a clear
+    # favourite, so "the prediction" is the likeliest score for the likeliest result
+    favoured = max(outcome, key=outcome.get)
+    return next(s for s in scorelines if _result_of(s[0], s[1]) == favoured)
 
 
 @app.get("/", include_in_schema=False)
@@ -167,10 +181,11 @@ def predict(req: PredictionRequest):
             away_win_prob=outcome["away_win"],
         )
 
-    scorelines = [
-        Scoreline(home_goals=h, away_goals=a, prob=p)
-        for h, a, p in model.predict_scorelines(req.home_team, req.away_team)
-    ]
+    # the whole 10x10 grid, ranked -- top 3 for the list, the rest so a score
+    # for the favoured result is always in there
+    ranked = model.predict_scorelines(req.home_team, req.away_team, top_n=100)
+    scorelines = [Scoreline(home_goals=h, away_goals=a, prob=p) for h, a, p in ranked[:3]]
+    ph, pa, pp = pick_predicted_score(outcome, ranked)
 
     return PredictionResponse(
         prediction_id=prediction_id,
@@ -182,5 +197,6 @@ def predict(req: PredictionRequest):
         home_expected_goals=home_xg,
         away_expected_goals=away_xg,
         top_scorelines=scorelines,
+        predicted_score=Scoreline(home_goals=ph, away_goals=pa, prob=pp),
         model_version=MODEL_VERSION,
     )
